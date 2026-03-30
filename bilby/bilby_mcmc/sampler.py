@@ -1,3 +1,4 @@
+#bilby_hybrid/bilby/bilby_mcmc/sampler.py
 import datetime
 import os
 import time
@@ -166,6 +167,7 @@ class Bilby_MCMC(MCMCSampler):
         evidence_method="stepping_stone",
         initial_sample_method="prior",
         initial_sample_dict=None,
+        initial_distribution=None,
     )
 
     def __init__(
@@ -213,6 +215,7 @@ class Bilby_MCMC(MCMCSampler):
         self.evidence_method = self.kwargs["evidence_method"]
         self.initial_sample_method = self.kwargs["initial_sample_method"]
         self.initial_sample_dict = self.kwargs["initial_sample_dict"]
+        self.initial_distribution = self.kwargs["initial_distribution"]
 
         self.printdt = self.kwargs["printdt"]
         self.check_point_delta_t = self.kwargs["check_point_delta_t"]
@@ -318,6 +321,7 @@ class Bilby_MCMC(MCMCSampler):
             initial_sample_method=self.initial_sample_method,
             initial_sample_dict=self.initial_sample_dict,
             normalize_prior=self.normalize_prior,
+            initial_distribution=self.initial_distribution
         )
 
     def get_setup_string(self):
@@ -595,10 +599,12 @@ class BilbyPTMCMCSampler(object):
         initial_sample_method,
         initial_sample_dict,
         normalize_prior=True,
+        initial_distribution=None,
     ):
         self.set_pt_inputs(pt_inputs)
         self.use_ratio = use_ratio
         self.initial_sample_method = initial_sample_method
+        self.initial_distribution = initial_distribution
         self.initial_sample_dict = initial_sample_dict
         self.normalize_prior = normalize_prior
         self.setup_sampler_dictionary(convergence_inputs, proposal_cycle)
@@ -606,6 +612,7 @@ class BilbyPTMCMCSampler(object):
         self.pt_rejection_sample = pt_rejection_sample
         self.pool = pool
         self.evidence_method = evidence_method
+        
 
         # Initialize counters
         self.swap_counter = Counter()
@@ -672,6 +679,7 @@ class BilbyPTMCMCSampler(object):
                     initial_sample_method=self.initial_sample_method,
                     initial_sample_dict=self.initial_sample_dict,
                     normalize_prior=self.normalize_prior,
+                    initial_distribution=self.initial_distribution,
                 )
                 for Eindex in range(n)
             ]
@@ -1167,6 +1175,7 @@ class BilbyMCMCSampler(object):
         initial_sample_method="prior",
         initial_sample_dict=None,
         normalize_prior=True,
+        initial_distribution=None,
     ):
         self.beta = beta
         self.Tindex = Tindex
@@ -1175,6 +1184,7 @@ class BilbyMCMCSampler(object):
         self.normalize_prior = normalize_prior
         self.parameters = _sampling_convenience_dump.priors.non_fixed_keys
         self.ndim = len(self.parameters)
+        self.initial_distribution = initial_distribution
 
         if initial_sample_method.lower() == "prior":
             full_sample_dict = _sampling_convenience_dump.priors.sample()
@@ -1183,6 +1193,22 @@ class BilbyMCMCSampler(object):
                 for k, v in full_sample_dict.items()
                 if k in _sampling_convenience_dump.priors.non_fixed_keys
             }
+        elif initial_sample_method.lower() == "bridge":
+            if self.initial_distribution is None:
+                raise ValueError(
+                    "initial_sample_method='bridge' requires initial_distribution"
+                )
+            full_sample_dict = self.initial_distribution.sample()
+            initial_sample = {
+                k: v
+                for k, v in full_sample_dict.items()
+                if k in _sampling_convenience_dump.priors.non_fixed_keys
+            }
+            missing = set(_sampling_convenience_dump.priors.non_fixed_keys) - set(initial_sample.keys())
+            if missing:
+                raise ValueError(
+                    f"Bridge sample missing required non-fixed keys: {missing}"
+                )
         elif initial_sample_method.lower() in ["maximize", "maximise", "maximum"]:
             initial_sample = get_initial_maximimum_posterior_sample(self.beta)
         else:
