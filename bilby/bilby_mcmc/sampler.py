@@ -1,4 +1,6 @@
 #bilby_hybrid/bilby/bilby_mcmc/sampler.py
+from cProfile import label
+from cProfile import label
 import datetime
 import os
 import time
@@ -1009,9 +1011,21 @@ class BilbyPTMCMCSampler(object):
         sem_lnlikes = np.array(sem_lnlikes)[::-1]
 
         lnZ, lnZerr = self._compute_evidence_from_mean_lnlikes(betas, mean_lnlikes)
+        
+        plot_label = f"{label}_E{ptchain[0].Eindex}"
+        
+        self._save_beta_lnl_data(
+            betas=betas,
+            mean_lnlikes=mean_lnlikes,
+            sem_lnlikes=sem_lnlikes,
+            outdir=outdir,
+            label=plot_label,
+            lnZ=lnZ,
+            lnZerr=lnZerr,
+        )
 
         if make_plots:
-            plot_label = f"{label}_E{ptchain[0].Eindex}"
+            
             self._create_lnZ_plots(
                 betas=betas,
                 mean_lnlikes=mean_lnlikes,
@@ -1080,8 +1094,22 @@ class BilbyPTMCMCSampler(object):
             logger.info("Failed to estimate stepping stone uncertainty")
             ln_z_err = np.nan
 
+        plot_label = f"{label}_E{ptchain[0].Eindex}"
+
+        self._save_stepping_stone_data(
+            betas=betas,
+            ln_likes=ln_likes,
+            ln_ratio=ln_ratio,
+            outdir=outdir,
+            label=plot_label,
+            tau=tau,
+            min_index=min_index,
+            max_index=max_index,
+            lnZ=ln_z,
+            lnZerr=ln_z_err,
+        )
+
         if make_plots:
-            plot_label = f"{label}_E{ptchain[0].Eindex}"
             self._create_stepping_stone_plot(
                 means=ln_ratio,
                 outdir=outdir,
@@ -1105,6 +1133,33 @@ class BilbyPTMCMCSampler(object):
         z2 = trapezoid(mean_lnlikes[::-1][::2][::-1], betas[::-1][::2][::-1])
         lnZerr = np.abs(lnZ - z2)
         return lnZ, lnZerr
+    
+    @staticmethod
+    def _save_beta_lnl_data(
+        betas,
+        mean_lnlikes,
+        outdir,
+        label,
+        sem_lnlikes=None,
+        lnZ=None,
+        lnZerr=None,
+    ):
+        import os
+        import numpy as np
+
+        filename = os.path.join(outdir, f"{label}_beta_lnl_data.npz")
+
+        if sem_lnlikes is None:
+            sem_lnlikes = np.full_like(mean_lnlikes, np.nan, dtype=float)
+
+        np.savez(
+            filename,
+            betas=np.asarray(betas, dtype=float),
+            mean_lnlikes=np.asarray(mean_lnlikes, dtype=float),
+            sem_lnlikes=np.asarray(sem_lnlikes, dtype=float),
+            lnZ=np.nan if lnZ is None else float(lnZ),
+            lnZerr=np.nan if lnZerr is None else float(lnZerr),
+        )
 
     def _create_lnZ_plots(self, betas, mean_lnlikes, outdir, label, sem_lnlikes=None):
         import matplotlib.pyplot as plt
@@ -1127,6 +1182,36 @@ class BilbyPTMCMCSampler(object):
         plt.tight_layout()
         fig.savefig("{}/{}_beta_lnl.png".format(outdir, label))
         plt.close()
+
+    @staticmethod
+    def _save_stepping_stone_data(
+        betas,
+        ln_likes,
+        ln_ratio,
+        outdir,
+        label,
+        tau=None,
+        min_index=None,
+        max_index=None,
+        lnZ=None,
+        lnZerr=None,
+    ):
+        import os
+        import numpy as np
+
+        filename = os.path.join(outdir, f"{label}_stepping_stone_data.npz")
+
+        np.savez(
+            filename,
+            betas=np.asarray(betas, dtype=float),
+            ln_likes=np.asarray(ln_likes, dtype=float),
+            ln_ratio=np.asarray(ln_ratio, dtype=float),
+            tau=np.nan if tau is None else float(tau),
+            min_index=-1 if min_index is None else int(min_index),
+            max_index=-1 if max_index is None else int(max_index),
+            lnZ=np.nan if lnZ is None else float(lnZ),
+            lnZerr=np.nan if lnZerr is None else float(lnZerr),
+        )
 
     def _create_stepping_stone_plot(self, means, outdir, label):
         import matplotlib.pyplot as plt

@@ -1,3 +1,4 @@
+#bilby_hybrid/bilby/bilby_mcmc/chain.py
 import numpy as np
 import pandas as pd
 from packaging import version
@@ -360,9 +361,65 @@ class Chain(object):
     def samples(self):
         samples = self._chain_array[self.minimum_index : self.position : self.thin]
         return pd.DataFrame(samples, columns=self.keys)
+    
+    def save_checkpoint_trace_data(self, outdir=".", label="label"):
+        """
+        Save the raw data used to create the checkpoint trace plot.
+
+        This allows us to reconstruct or compare the chain dynamics later
+        without rerunning the sampler.
+        """
+        import os
+
+        filename = os.path.join(outdir, f"{label}_checkpoint_trace_data.npz")
+
+        tau_positions = np.array(list(self.max_tau_dict.keys()), dtype=int)
+        tau_values = np.array(list(self.max_tau_dict.values()), dtype=float)
+
+        # Store the chain only up to the current position
+        chain_array = self._chain_array[: self.position + 1].copy()
+
+        # Save parameter-wise last tau dictionary in a stable order
+        tau_keys = np.array(list(self.last_full_tau_dict.keys()), dtype=object)
+        tau_per_parameter = np.array(
+            [self.last_full_tau_dict[k] for k in tau_keys],
+            dtype=float,
+        )
+
+        np.savez(
+            filename,
+            chain_array=chain_array,
+            keys=np.array(self.keys, dtype=object),
+            parameter_keys=np.array(self.parameter_keys, dtype=object),
+            position=int(self.position),
+            minimum_index=int(self.minimum_index),
+            minimum_index_method=str(getattr(self, "minimum_index_method", "")),
+            thin=int(self.thin),
+            tau=float(self.tau),
+            tau_last=float(self.tau_last),
+            tau_positions=tau_positions,
+            tau_values=tau_values,
+            tau_keys=tau_keys,
+            tau_per_parameter=tau_per_parameter,
+            nsamples=int(self.nsamples),
+            max_log_likelihood=float(self.max_log_likelihood),
+            burn_in_nact=float(self.burn_in_nact),
+            thin_by_nact=float(self.thin_by_nact),
+            fixed_discard=int(self.fixed_discard),
+            autocorr_c=float(self.autocorr_c),
+            min_tau=float(self.min_tau),
+            fixed_tau=(
+                np.nan if self.fixed_tau is None else float(self.fixed_tau)
+            ),
+            tau_window=(
+                -1 if self.tau_window is None else int(self.tau_window)
+            ),
+        )    
 
     def plot(self, outdir=".", label="label", priors=None, all_samples=None):
         import matplotlib.pyplot as plt
+
+        self.save_checkpoint_trace_data(outdir=outdir, label=label)
 
         fig, axes = plt.subplots(
             nrows=self.ndim + 3, ncols=2, figsize=(8, 9 + 3 * (self.ndim))
