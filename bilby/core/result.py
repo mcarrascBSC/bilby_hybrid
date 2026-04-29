@@ -1,3 +1,4 @@
+#bilby/core/result.py
 import datetime
 import inspect
 import json

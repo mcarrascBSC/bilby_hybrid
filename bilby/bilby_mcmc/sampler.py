@@ -553,10 +553,23 @@ class Bilby_MCMC(MCMCSampler):
     @staticmethod
     def plot_progress(ptsampler, label, outdir, priors, diagnostic=False):
         logger.info("Creating diagnostic plots")
+
         for ii, row in ptsampler.sampler_dictionary.items():
             for jj, sampler in enumerate(row):
                 plot_label = f"{label}_E{sampler.Eindex}_T{sampler.Tindex}"
+
                 if diagnostic is True or sampler.beta == 1:
+                    # Store cost metadata on the chain before saving diagnostic npz.
+                    sampler.chain.L1steps = int(getattr(ptsampler, "L1steps", 1))
+                    sampler.chain.sampling_time_s = float(
+                        getattr(ptsampler, "sampling_time", np.nan)
+                    )
+                    sampler.chain.nlikelihood = float(
+                        ptsampler.position
+                        * getattr(ptsampler, "L1steps", 1)
+                        * getattr(ptsampler, "_nsamplers", 1)
+                    )
+
                     sampler.chain.plot(
                         outdir=outdir,
                         label=plot_label,
