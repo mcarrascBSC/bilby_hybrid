@@ -1,3 +1,4 @@
+#bilby_hybrid/bilby/bilby_mcmc/utils.py
 from collections import namedtuple
 
 LOGLKEY = "logl"
